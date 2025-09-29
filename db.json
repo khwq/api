@@ -42,6 +42,36 @@
       "firstLoginAt": "2025-09-23T11:22:22.892Z",
       "expiresAt": "2025-09-25T11:22:22.892Z",
       "createdAt": "2025-09-23T11:22:15.852Z"
+    },
+    {
+      "key": "DF25-BCA4-44A0-8115",
+      "api": "1eab73d459fdda18a576ab65",
+      "status": "active",
+      "durationInDays": 1,
+      "hwid": "4c6be390e155d10a4ea463c422f18756aae75f2b934fc93fcd2e3fe8ba9f8029",
+      "firstLoginAt": "2025-09-23T18:47:31.946Z",
+      "expiresAt": "2025-09-24T18:47:31.946Z",
+      "createdAt": "2025-09-23T17:13:09.437Z"
+    },
+    {
+      "key": "9806-C882-D020-5A29",
+      "api": "1eab73d459fdda18a576ab65",
+      "status": "active",
+      "durationInDays": 50,
+      "hwid": "4c6be390e155d10a4ea463c422f18756aae75f2b934fc93fcd2e3fe8ba9f8029",
+      "firstLoginAt": "2025-09-25T11:56:47.654Z",
+      "expiresAt": "2025-11-14T11:56:47.654Z",
+      "createdAt": "2025-09-25T11:56:40.020Z"
+    },
+    {
+      "key": "WAVE-551B-B8CF-E543-8E0B",
+      "api": "1eab73d459fdda18a576ab65",
+      "status": "active",
+      "durationInDays": 10,
+      "hwid": null,
+      "firstLoginAt": null,
+      "expiresAt": null,
+      "createdAt": "2025-09-26T18:18:38.088Z"
     }
   ],
   "supportUsers": [

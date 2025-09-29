@@ -78,8 +78,6 @@ app.post('/api/validate', (req, res) => {
         return res.status(500).json({ success: false, message: 'Lỗi máy chủ nội bộ.' });
     }
 });
-
-
-app.listen(PORT, () => {
-    console.log(`Server API đang chạy tại http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server API đang chạy tại http://0.0.0.0:${PORT}`);
 });
