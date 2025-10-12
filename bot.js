@@ -6,7 +6,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
-const fetch = require('node-fetch');
 const { Client, Collection, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 require('dotenv').config();
 
