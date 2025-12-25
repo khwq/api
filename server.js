@@ -85,3 +85,4 @@ app.listen(PORT, '0.0.0.0', () => {
 
 
 require('./bot.js');
+require('./deploy-commands.js');
