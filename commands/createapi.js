@@ -1,70 +1,48 @@
 // createapi.js
-const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
-const fs = require("fs");
-const crypto = require("crypto");
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const fs = require('fs');
+const crypto = require('crypto');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName("createapi")
-        .setDescription("Create a new API code for your application.")
+        .setName('createapi')
+        .setDescription('Create a new API code')
         .addStringOption(option =>
-            option
-                .setName("ten_app")
-                .setDescription("Application name to create API")
+            option.setName('ten_app')
+                .setDescription('Application name')
                 .setRequired(true)
         ),
 
     async execute(interaction) {
-        const appName = interaction.options.getString("ten_app");
-        const db = JSON.parse(fs.readFileSync("./db.json", "utf8"));
+        const appName = interaction.options.getString('ten_app');
+        const db = JSON.parse(fs.readFileSync('./db.json', 'utf8'));
 
-        if (!db.apis) db.apis = [];
+        // Disable all old APIs
+        db.apis.forEach(api => api.status = 'disabled');
 
-        // ❌ Trùng tên app
-        if (db.apis.some(api => api.appName.toLowerCase() === appName.toLowerCase())) {
-            return interaction.reply({
-                content: `❌ Application name **"${appName}"** already exists.`,
-                ephemeral: true
-            });
-        }
-
-        // ================= DISABLE ALL OLD API =================
-        db.apis.forEach(api => {
-            api.status = "disabled";
-            api.disabledAt = new Date().toISOString();
-        });
-
-        // ================= CREATE NEW API =================
-        const newApiKey = crypto.randomBytes(16).toString("hex");
+        const apiKey = crypto.randomBytes(12).toString('hex');
 
         const newApi = {
-            appName: appName,
-            apiKey: newApiKey,
+            appName,
+            apiKey,
             ownerId: interaction.user.id,
-            status: "active",
+            status: 'active',
             createdAt: new Date().toISOString()
         };
 
         db.apis.push(newApi);
+        fs.writeFileSync('./db.json', JSON.stringify(db, null, 2));
 
-        fs.writeFileSync("./db.json", JSON.stringify(db, null, 2));
-
-        // ================= EMBED =================
         const embed = new EmbedBuilder()
             .setColor(0x00ff00)
-            .setTitle("✅ CREATE API SUCCESS")
-            .setDescription(
-                `A new API has been created successfully.\n\n` +
-                `⚠️ **All old APIs have been disabled automatically**`
-            )
+            .setTitle('API CREATED')
             .addFields(
-                { name: "Application", value: appName, inline: true },
-                { name: "Status", value: "🟢 Active", inline: true },
-                { name: "API Key (Save carefully)", value: `\`\`\`${newApiKey}\`\`\`` }
+                { name: 'App', value: appName },
+                { name: 'API KEY', value: `\`\`\`${apiKey}\`\`\`` },
+                { name: 'Status', value: 'ACTIVE' }
             )
-            .setFooter({ text: `Requested by ${interaction.user.tag}` })
             .setTimestamp();
 
-        await interaction.reply({ embeds: [embed] });
+        await interaction.reply({ embeds: [embed], ephemeral: true });
     }
 };
