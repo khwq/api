@@ -1,76 +1,76 @@
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+// bot.js
 const fs = require('fs');
-const crypto = require('crypto');
+const path = require('path');
+const { Client, Collection, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+require('dotenv').config();
 
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
-});
+console.log("🚀 Đang khởi động bot Discord...");
 
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.commands = new Collection();
 
-// Load slash commands
-const createApiCommand = require('./createapi.js');
-client.commands.set(createApiCommand.data.name, createApiCommand);
+// Load lệnh slash từ thư mục /commands
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+for (const file of commandFiles) {
+    const filePath = path.join(commandsPath, file);
+    const command = require(filePath);
+    if ('data' in command && 'execute' in command) {
+        client.commands.set(command.data.name, command);
+    } else {
+        console.log(`[⚠️] Thiếu thuộc tính "data" hoặc "execute" trong: ${file}`);
+    }
+}
 
+// Kiểm tra quyền người dùng
+function hasPermission(interaction) {
+    const db = JSON.parse(fs.readFileSync('./db.json', 'utf-8'));
+    const isOwner = interaction.guild.ownerId === interaction.user.id;
+    const isSupport = db.supportUsers.includes(interaction.user.id);
+    return isOwner || isSupport;
+}
+
+// Khi bot khởi động xong
 client.once('ready', () => {
-    console.log(`✅ Logged in as ${client.user.tag}`);
+    console.log(`🤖 Bot đã đăng nhập: ${client.user.tag}`);
+    console.log(`✅ Slash commands đã sẵn sàng.`);
 });
 
-// Slash command handler
+// Khi có slash command
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
-
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
 
+    if (!hasPermission(interaction)) {
+        const noPermsEmbed = new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle('⛔ Truy cập bị từ chối')
+            .setDescription('Bạn không có quyền dùng lệnh này.')
+            .setTimestamp();
+
+        await interaction.reply({ embeds: [noPermsEmbed], ephemeral: true });
+        return;
+    }
+
     try {
         await command.execute(interaction);
-    } catch (err) {
-        console.error(err);
-        interaction.reply({ content: '❌ Command error', ephemeral: true });
+    } catch (error) {
+        console.error("❌ Lỗi khi xử lý lệnh:", error);
+        const errorEmbed = new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle('⚠️ Đã có lỗi xảy ra!')
+            .setDescription('Bot gặp lỗi khi thực thi lệnh này.');
+
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp({ embeds: [errorEmbed], ephemeral: true });
+        } else {
+            await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+        }
     }
 });
 
-// Prefix command !getkeyfree
-client.on('messageCreate', async message => {
-    if (message.author.bot) return;
-    if (!message.content.startsWith('!getkeyfree')) return;
-
-    const db = JSON.parse(fs.readFileSync('./db.json', 'utf8'));
-
-    const activeApi = db.apis.find(a => a.status === 'active');
-    if (!activeApi) {
-        return message.reply('❌ No active API.');
-    }
-
-    // mỗi user chỉ 1 free key
-    if (db.freeKeys[message.author.id]) {
-        return message.reply(`⚠️ You already got a free key:\n\`${db.freeKeys[message.author.id]}\``);
-    }
-
-    const key = `WAVE-${crypto.randomBytes(2).toString('hex').toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
-
-    const newKey = {
-        key,
-        api: activeApi.apiKey,
-        status: 'active',
-        durationInDays: 1,
-        hwid: null,
-        firstLoginAt: null,
-        expiresAt: null,
-        createdAt: new Date().toISOString()
-    };
-
-    db.keys.push(newKey);
-    db.freeKeys[message.author.id] = key;
-
-    fs.writeFileSync('./db.json', JSON.stringify(db, null, 2));
-
-    message.reply(`✅ FREE KEY:\n\`\`\`${key}\`\`\``);
-});
-
-client.login(process.env.BOT_TOKEN);
+// Bắt đầu đăng nhập bot
+client.login(process.env.DISCORD_TOKEN)
+    .then(() => console.log("🔑 Token hợp lệ, đang kết nối tới Discord Gateway..."))
+    .catch(err => console.error("❌ Token không hợp lệ hoặc lỗi đăng nhập:", err));
