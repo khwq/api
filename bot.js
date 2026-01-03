@@ -1,9 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-const { Client, Collection, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-require('dotenv').config();
+const fs = require("fs");
+const path = require("path");
+const { Client, Collection, GatewayIntentBits, EmbedBuilder } = require("discord.js");
+require("dotenv").config();
 
-console.log("🚀 Đang khởi động bot Discord...");
+console.log("🚀 Starting Discord Bot...");
 
 const client = new Client({
     intents: [
@@ -16,34 +16,45 @@ const client = new Client({
 client.commands = new Collection();
 const PREFIX = "!";
 
-// ================= LOAD SLASH COMMAND (ADMIN) =================
-const commandsPath = path.join(__dirname, 'commands');
+// ================= LOAD SLASH COMMANDS (ADMIN) =================
+const commandsPath = path.join(__dirname, "commands");
 if (fs.existsSync(commandsPath)) {
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-    for (const file of commandFiles) {
-        const command = require(path.join(commandsPath, file));
-        if (command.data && command.execute) {
-            client.commands.set(command.data.name, command);
+    const files = fs.readdirSync(commandsPath).filter(f => f.endsWith(".js"));
+    for (const file of files) {
+        const cmd = require(path.join(commandsPath, file));
+        if (cmd.data && cmd.execute) {
+            client.commands.set(cmd.data.name, cmd);
         }
     }
 }
 
-// ================= PERMISSION CHECK (ADMIN) =================
+// ================= DB HELPER =================
+function loadDB() {
+    return JSON.parse(fs.readFileSync("./db.json", "utf8"));
+}
+
+function saveDB(db) {
+    fs.writeFileSync("./db.json", JSON.stringify(db, null, 2));
+}
+
+// ================= PERMISSION (ADMIN) =================
 function hasPermission(interaction) {
-    const db = JSON.parse(fs.readFileSync('./db.json', 'utf8'));
-    const isOwner = interaction.guild.ownerId === interaction.user.id;
-    const isSupport = db.supportUsers.includes(interaction.user.id);
-    return isOwner || isSupport;
+    const db = loadDB();
+    return (
+        interaction.guild.ownerId === interaction.user.id ||
+        db.supportUsers.includes(interaction.user.id)
+    );
 }
 
 // ================= READY =================
-client.once('ready', () => {
-    console.log(`🤖 Bot đã đăng nhập: ${client.user.tag}`);
+client.once("ready", () => {
+    console.log(`🤖 Logged in as ${client.user.tag}`);
 });
 
 // ================= SLASH COMMAND HANDLER =================
-client.on('interactionCreate', async interaction => {
+client.on("interactionCreate", async interaction => {
     if (!interaction.isChatInputCommand()) return;
+
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
 
@@ -52,8 +63,8 @@ client.on('interactionCreate', async interaction => {
             embeds: [
                 new EmbedBuilder()
                     .setColor(0xFF0000)
-                    .setTitle('⛔ Access Denied')
-                    .setDescription('You do not have permission.')
+                    .setTitle("⛔ Access Denied")
+                    .setDescription("You do not have permission.")
             ],
             ephemeral: true
         });
@@ -62,14 +73,15 @@ client.on('interactionCreate', async interaction => {
     try {
         await command.execute(interaction);
     } catch (err) {
-        console.error(err);
+        console.error("Slash error:", err);
     }
 });
 
 // ================= UTILS =================
 function generateKey() {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    const part = () => [...Array(4)].map(() => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const part = () =>
+        [...Array(4)].map(() => chars[Math.floor(Math.random() * chars.length)]).join("");
     return `WAVE-${part()}-${part()}-${part()}-${part()}`;
 }
 
@@ -84,23 +96,28 @@ client.on("messageCreate", async message => {
     if (message.author.bot) return;
     if (!message.content.startsWith(PREFIX)) return;
 
-    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-    const cmd = args.shift().toLowerCase();
-    if (cmd !== "getkey") return;
+    const cmd = message.content.slice(1).trim().toLowerCase();
+    if (cmd !== "getkeyfree") return;
 
-    const db = JSON.parse(fs.readFileSync('./db.json', 'utf8'));
+    let db;
+    try {
+        db = loadDB();
+    } catch (err) {
+        console.error("DB ERROR:", err.message);
+        return message.reply("❌ Database error. Contact admin.");
+    }
+
     const userId = message.author.id;
+    const now = Date.now();
 
     const COOLDOWN = 24 * 60 * 60 * 1000;
     const KEY_EXPIRE_HOURS = 3;
-    const now = Date.now();
 
     if (!db.freeKeys) db.freeKeys = {};
 
-    // ❌ USED TODAY
+    // ❌ COOLDOWN
     if (db.freeKeys[userId] && now - db.freeKeys[userId] < COOLDOWN) {
         const remain = COOLDOWN - (now - db.freeKeys[userId]);
-
         return message.reply({
             embeds: [
                 new EmbedBuilder()
@@ -113,14 +130,25 @@ client.on("messageCreate", async message => {
         });
     }
 
-    // ✅ CREATE KEY
+    // ================= GET ACTIVE API (NEWEST) =================
+    const activeApis = db.apis
+        .filter(a => a.status === "active")
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    if (activeApis.length === 0) {
+        return message.reply("❌ No active API available. Please contact admin.");
+    }
+
+    const apiKey = activeApis[0].apiKey;
+
+    // ================= CREATE FREE KEY =================
     const key = generateKey();
     const createdAt = new Date().toISOString();
     const expiresAt = new Date(now + KEY_EXPIRE_HOURS * 60 * 60 * 1000).toISOString();
 
     db.keys.push({
         key,
-        api: null,
+        api: apiKey,              // ✅ FIX: GẮN API ACTIVE
         status: "active",
         durationInDays: 0,
         hwid: null,
@@ -131,9 +159,9 @@ client.on("messageCreate", async message => {
     });
 
     db.freeKeys[userId] = now;
-    fs.writeFileSync('./db.json', JSON.stringify(db, null, 2));
+    saveDB(db);
 
-    // 📢 PUBLIC EMBED
+    // ================= PUBLIC EMBED =================
     await message.reply({
         embeds: [
             new EmbedBuilder()
@@ -147,7 +175,7 @@ client.on("messageCreate", async message => {
         ]
     });
 
-    // 📩 DM EMBED
+    // ================= DM EMBED =================
     try {
         await message.author.send({
             embeds: [
@@ -161,14 +189,14 @@ client.on("messageCreate", async message => {
             ]
         });
     } catch {
-        console.log("❌ User tắt DM");
+        console.log("❌ User closed DM");
     }
 });
 
 // ================= LOGIN =================
 client.login(process.env.DISCORD_TOKEN)
-    .then(() => console.log("🔑 Token OK – Bot running"))
+    .then(() => console.log("🔑 Bot connected"))
     .catch(err => console.error("❌ Login error:", err));
 
-require('./deploy-commands.js');
-require('./server.js');
+require("./deploy-commands.js");
+require("./server.js");
