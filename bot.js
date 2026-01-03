@@ -86,7 +86,7 @@ client.on("messageCreate", async message => {
 
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const cmd = args.shift().toLowerCase();
-    if (cmd !== "getkeyfree") return;
+    if (cmd !== "getkey") return;
 
     const db = JSON.parse(fs.readFileSync('./db.json', 'utf8'));
     const userId = message.author.id;
