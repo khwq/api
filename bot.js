@@ -74,3 +74,8 @@ client.on('interactionCreate', async interaction => {
 client.login(process.env.DISCORD_TOKEN)
     .then(() => console.log("🔑 Token hợp lệ, đang kết nối tới Discord Gateway..."))
     .catch(err => console.error("❌ Token không hợp lệ hoặc lỗi đăng nhập:", err));
+require('./deploy-commands.js');
+require('./server.js');
+
+
+
