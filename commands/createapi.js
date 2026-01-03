@@ -1,48 +1,45 @@
-// createapi.js
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const fs = require('fs');
-const crypto = require('crypto');
+const { SlashCommandBuilder: SlashCommandBuilderTaoApi, EmbedBuilder: EmbedBuilderTaoApi } = require('discord.js');
+const fsTaoApi = require('fs');
+const cryptoTaoApi = require('crypto');
 
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: new SlashCommandBuilderTaoApi()
         .setName('createapi')
-        .setDescription('Create a new API code')
+        .setDescription('Create a new API code for your application.')
         .addStringOption(option =>
             option.setName('ten_app')
-                .setDescription('Application name')
-                .setRequired(true)
-        ),
-
+                .setDescription('Application name to create API')
+                .setRequired(true)),
     async execute(interaction) {
         const appName = interaction.options.getString('ten_app');
-        const db = JSON.parse(fs.readFileSync('./db.json', 'utf8'));
+        const db = JSON.parse(fsTaoApi.readFileSync('./db.json', 'utf-8'));
+        
+        if (db.apis.some(api => api.appName.toLowerCase() === appName.toLowerCase())) {
+            return interaction.reply({ content: `Application name "${appName}" existed.`, ephemeral: true });
+        }
 
-        // Disable all old APIs
-        db.apis.forEach(api => api.status = 'disabled');
-
-        const apiKey = crypto.randomBytes(12).toString('hex');
-
+        const newApiKey = cryptoTaoApi.randomBytes(12).toString('hex');
         const newApi = {
-            appName,
-            apiKey,
+            appName: appName,
+            apiKey: newApiKey,
             ownerId: interaction.user.id,
             status: 'active',
             createdAt: new Date().toISOString()
         };
-
         db.apis.push(newApi);
-        fs.writeFileSync('./db.json', JSON.stringify(db, null, 2));
+        fsTaoApi.writeFileSync('./db.json', JSON.stringify(db, null, 2));
 
-        const embed = new EmbedBuilder()
-            .setColor(0x00ff00)
-            .setTitle('API CREATED')
+        const embed = new EmbedBuilderTaoApi()
+            .setColor(0x00FF00)
+            .setTitle('Create Successful API')
+            .setDescription(`Successfully created API for the application **${appName}**`)
             .addFields(
-                { name: 'App', value: appName },
-                { name: 'API KEY', value: `\`\`\`${apiKey}\`\`\`` },
-                { name: 'Status', value: 'ACTIVE' }
+                { name: 'Your API Key (Save it carefully)', value: `\`\`\`${newApiKey}\`\`\`` },
+                { name: 'Status', value: 'Work' }
             )
+            .setFooter({ text: `Requested by ${interaction.user.tag}`})
             .setTimestamp();
-
-        await interaction.reply({ embeds: [embed], ephemeral: true });
-    }
+        
+        await interaction.reply({ embeds: [embed] });
+    },
 };
