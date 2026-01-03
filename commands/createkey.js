@@ -7,7 +7,7 @@ module.exports = {
         .setName('createkey')
         .setDescription('Generate new keys with customizable random length.')
         .addStringOption(option => option.setName('api_key').setDescription('24 digit API code').setRequired(true).setMinLength(24).setMaxLength(24))
-        .addIntegerOption(option => option.setName('so_luong').setDescription('Number of keys to generate').setRequired(true).setMinValue(1).setMaxValue(100))
+        .addIntegerOption(option => option.setName('so_luong').setDescription('Number of keys to generate').setRequired(true).setMinValue(1).setMaxValue(50))
         .addIntegerOption(option => option.setName('han_ngay').setDescription('Number of days of key use (from activation)').setRequired(true).setMinValue(1))
         .addStringOption(option => option.setName('prefix').setDescription('The prefix of the key (eg: MyApp). "-" will be added automatically.').setRequired(false))
         .addIntegerOption(option => 
