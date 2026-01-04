@@ -1,25 +1,55 @@
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
+
 const app = express();
-const PORT = 2308; 
+const PORT = process.env.PORT || 2308;
 
-app.use(express.json());
+// ===================== MIDDLEWARE =====================
+app.use(express.json({
+    limit: '1mb'
+}));
 
+// ===================== DB PATH =====================
+const dbPath = path.join(__dirname, 'db.json');
 
+// ===================== ROUTE =====================
 app.post('/api/validate', (req, res) => {
-    const { key, hwid, apiKey } = req.body;
-
-    if (!key || !hwid || !apiKey) {
-        return res.status(400).json({
-            success: false,
-            message: 'Thiếu key, HWID hoặc API key.'
-        });
-    }
-
     try {
+        // 🧪 DEBUG (xem log Render)
+        console.log("REQ BODY:", req.body);
+
+        if (!req.body || typeof req.body !== 'object') {
+            return res.status(400).json({
+                success: false,
+                message: 'Body không hợp lệ.'
+            });
+        }
+
+        let { key, hwid, apiKey } = req.body;
+
+        // Normalize
+        key = typeof key === 'string' ? key.trim() : null;
+        hwid = typeof hwid === 'string' ? hwid.trim() : null;
+        apiKey = typeof apiKey === 'string' ? apiKey.trim() : null;
+
+        if (!key || !hwid || !apiKey) {
+            return res.status(400).json({
+                success: false,
+                message: 'Thiếu key, HWID hoặc API key.'
+            });
+        }
+
+        if (!fs.existsSync(dbPath)) {
+            return res.status(500).json({
+                success: false,
+                message: 'Không tìm thấy cơ sở dữ liệu.'
+            });
+        }
+
         let db = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
 
-        // 1️⃣ Check API
+        // ===================== CHECK API =====================
         const apiData = db.apis.find(a => a.apiKey === apiKey);
         if (!apiData || apiData.status !== 'active') {
             return res.json({
@@ -28,15 +58,18 @@ app.post('/api/validate', (req, res) => {
             });
         }
 
-        // 2️⃣ Check KEY
+        // ===================== CHECK KEY =====================
         const keyIndex = db.keys.findIndex(k => k.key === key);
         if (keyIndex === -1) {
-            return res.json({ success: false, message: 'Key không hợp lệ.' });
+            return res.json({
+                success: false,
+                message: 'Key không hợp lệ.'
+            });
         }
 
         const keyData = db.keys[keyIndex];
 
-        // ❌ KEY KHÔNG THUỘC API NÀY
+        // ❌ KEY KHÔNG THUỘC APP NÀY
         if (keyData.api !== apiKey) {
             return res.json({
                 success: false,
@@ -44,7 +77,7 @@ app.post('/api/validate', (req, res) => {
             });
         }
 
-        // 3️⃣ Ban check
+        // ===================== BAN =====================
         if (keyData.status === 'banned') {
             return res.json({
                 success: false,
@@ -52,26 +85,29 @@ app.post('/api/validate', (req, res) => {
             });
         }
 
-        // 4️⃣ First login → bind HWID
+        // ===================== FIRST LOGIN =====================
         if (!keyData.hwid) {
             keyData.hwid = hwid;
             keyData.firstLoginAt = new Date().toISOString();
 
             const expires = new Date();
-            expires.setDate(expires.getDate() + (keyData.durationInDays || 0));
-            keyData.expiresAt = expires.toISOString();
+            expires.setDate(
+                expires.getDate() + (Number(keyData.durationInDays) || 0)
+            );
 
+            keyData.expiresAt = expires.toISOString();
             db.keys[keyIndex] = keyData;
+
             fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
             return res.json({
                 success: true,
-                message: 'Login lần đầu thành công',
+                message: 'Xác thực lần đầu thành công!',
                 expires: keyData.expiresAt
             });
         }
 
-        // 5️⃣ HWID mismatch
+        // ===================== HWID CHECK =====================
         if (keyData.hwid !== hwid) {
             return res.json({
                 success: false,
@@ -79,7 +115,7 @@ app.post('/api/validate', (req, res) => {
             });
         }
 
-        // 6️⃣ Expired
+        // ===================== EXPIRE =====================
         if (new Date(keyData.expiresAt) < new Date()) {
             return res.json({
                 success: false,
@@ -87,6 +123,7 @@ app.post('/api/validate', (req, res) => {
             });
         }
 
+        // ===================== OK =====================
         return res.json({
             success: true,
             message: 'Xác thực thành công!',
@@ -94,7 +131,7 @@ app.post('/api/validate', (req, res) => {
         });
 
     } catch (err) {
-        console.error(err);
+        console.error("SERVER ERROR:", err);
         return res.status(500).json({
             success: false,
             message: 'Lỗi máy chủ.'
@@ -102,11 +139,11 @@ app.post('/api/validate', (req, res) => {
     }
 });
 
-
-
+// ===================== START SERVER =====================
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server API đang chạy tại http://0.0.0.0:${PORT}`);
+    console.log(`Server API running on port ${PORT}`);
 });
-require('./deploy-commands.js');
-require('./bot.js');
 
+// ⚠️ Optional
+ require('./deploy-commands.js');
+ require('./bot.js');
