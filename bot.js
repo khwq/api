@@ -1,3 +1,4 @@
+// bot.js
 const fs = require('fs');
 const path = require('path');
 const { Client, Collection, GatewayIntentBits, EmbedBuilder } = require('discord.js');
@@ -75,4 +76,3 @@ client.login(process.env.DISCORD_TOKEN)
     .catch(err => console.error("❌ Token không hợp lệ hoặc lỗi đăng nhập:", err));
 require('./deploy-commands.js');
 require('./server.js');
-
