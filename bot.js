@@ -1,4 +1,4 @@
-// bot.js
+// bot.js main
 const fs = require('fs');
 const path = require('path');
 const { Client, Collection, GatewayIntentBits, EmbedBuilder } = require('discord.js');
