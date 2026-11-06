@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const fs = require('fs');
 const crypto = require('crypto');
+const { Pool } = require('pg');
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -29,58 +31,55 @@ module.exports = {
             prefix += '-';
         }
 
-        const db = JSON.parse(fs.readFileSync('./db.json', 'utf-8'));
-        const apiData = db.apis.find(a => a.apiKey === apiKey);
-
-        if (!apiData) {
-            return interaction.editReply({ content: 'Invalid API code.', ephemeral: true });
-        }
-        
-        const CHUNK_SIZE = 4;
-        const totalRandomChars = CHUNK_SIZE * randomChunks;
-        const bytesNeeded = Math.ceil(totalRandomChars / 2);
-
-        const generatedKeyStrings = Array.from({ length: quantity }, () => {
-            const randomHex = crypto.randomBytes(bytesNeeded).toString('hex').toUpperCase();
-            const fullRandomString = randomHex.slice(0, totalRandomChars);
-            
-            const chunks = [];
-            for (let j = 0; j < fullRandomString.length; j += CHUNK_SIZE) {
-                chunks.push(fullRandomString.substring(j, j + CHUNK_SIZE));
+        try {
+            // Kiểm tra API có tồn tại không
+            const apiResult = await pool.query('SELECT * FROM apis WHERE api_key = $1', [apiKey]);
+            if (apiResult.rows.length === 0) {
+                return interaction.editReply({ content: 'Invalid API code.', ephemeral: true });
             }
-            const finalRandomPart = chunks.join('-');
-            
-            return prefix + finalRandomPart;
-        });
+            const apiData = apiResult.rows[0];
 
-        generatedKeyStrings.forEach(keyString => {
-            const newKey = {
-                key: keyString,
-                api: apiKey,
-                status: 'active',
-                durationInDays: durationInDays,
-                hwid: null,
-                firstLoginAt: null,
-                expiresAt: null,
-                createdAt: new Date().toISOString()
-            };
-            db.keys.push(newKey);
-        });
+            const CHUNK_SIZE = 4;
+            const totalRandomChars = CHUNK_SIZE * randomChunks;
+            const bytesNeeded = Math.ceil(totalRandomChars / 2);
 
-        fs.writeFileSync('./db.json', JSON.stringify(db, null, 2));
+            const generatedKeyStrings = Array.from({ length: quantity }, () => {
+                const randomHex = crypto.randomBytes(bytesNeeded).toString('hex').toUpperCase();
+                const fullRandomString = randomHex.slice(0, totalRandomChars);
+                
+                const chunks = [];
+                for (let j = 0; j < fullRandomString.length; j += CHUNK_SIZE) {
+                    chunks.push(fullRandomString.substring(j, j + CHUNK_SIZE));
+                }
+                const finalRandomPart = chunks.join('-');
+                
+                return prefix + finalRandomPart;
+            });
 
-        let formatString = 'XXXX';
-        if (randomChunks > 1) {
-            formatString += '-XXXX'.repeat(randomChunks - 1);
+            // Thêm từng key vào Database
+            for (const keyString of generatedKeyStrings) {
+                await pool.query(
+                    'INSERT INTO keys (key, api, status, duration_in_days) VALUES ($1, $2, $3, $4)',
+                    [keyString, apiKey, 'active', durationInDays]
+                );
+            }
+
+            let formatString = 'XXXX';
+            if (randomChunks > 1) {
+                formatString += '-XXXX'.repeat(randomChunks - 1);
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0x00BFFF)
+                .setTitle(`Created Success ${quantity} Key`)
+                .setDescription(`Keys have been generated for the app's API. **${apiData.app_name}**.\nExpiry:: **${durationInDays} day** (since first activation).\nKey format: \`${prefix || ''}${formatString}\``)
+                .addFields({ name: 'List of generated keys', value: `\`\`\`${generatedKeyStrings.join('\n')}\`\`\`` }) 
+                .setTimestamp();
+                
+            await interaction.editReply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            await interaction.editReply({ content: 'Lỗi kết nối Database!' });
         }
-
-        const embed = new EmbedBuilder()
-            .setColor(0x00BFFF)
-            .setTitle(`Created Success ${quantity} Key`)
-            .setDescription(`Keys have been generated for the app's API. **${apiData.appName}**.\nExpiry:: **${durationInDays} day** (since first activation).\nKey format: \`${prefix || ''}${formatString}\``)
-            .addFields({ name: 'List of generated keys', value: `\`\`\`${generatedKeyStrings.join('\n')}\`\`\`` }) 
-            .setTimestamp();
-            
-        await interaction.editReply({ embeds: [embed] });
     },
 };
