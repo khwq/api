@@ -1,9 +1,11 @@
-const { SlashCommandBuilder: SlashCommandBuilderTaoApi, EmbedBuilder: EmbedBuilderTaoApi } = require('discord.js');
-const fsTaoApi = require('fs');
-const cryptoTaoApi = require('crypto');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const crypto = require('crypto');
+const { Pool } = require('pg');
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
 module.exports = {
-    data: new SlashCommandBuilderTaoApi()
+    data: new SlashCommandBuilder()
         .setName('createapi')
         .setDescription('Create a new API code for your application.')
         .addStringOption(option =>
@@ -12,34 +14,37 @@ module.exports = {
                 .setRequired(true)),
     async execute(interaction) {
         const appName = interaction.options.getString('ten_app');
-        const db = JSON.parse(fsTaoApi.readFileSync('./db.json', 'utf-8'));
         
-        if (db.apis.some(api => api.appName.toLowerCase() === appName.toLowerCase())) {
-            return interaction.reply({ content: `Application name "${appName}" existed.`, ephemeral: true });
+        try {
+            // Kiểm tra xem tên app đã tồn tại chưa
+            const checkResult = await pool.query('SELECT * FROM apis WHERE LOWER(app_name) = LOWER($1)', [appName]);
+            if (checkResult.rows.length > 0) {
+                return interaction.reply({ content: `Application name "${appName}" existed.`, ephemeral: true });
+            }
+
+            const newApiKey = crypto.randomBytes(12).toString('hex');
+            
+            // Lưu vào Supabase
+            await pool.query(
+                'INSERT INTO apis (app_name, api_key, owner_id, status) VALUES ($1, $2, $3, $4)',
+                [appName, newApiKey, interaction.user.id, 'active']
+            );
+
+            const embed = new EmbedBuilder()
+                .setColor(0x00FF00)
+                .setTitle('Create Successful API')
+                .setDescription(`Successfully created API for the application **${appName}**`)
+                .addFields(
+                    { name: 'Your API Key (Save it carefully)', value: `\`\`\`${newApiKey}\`\`\`` },
+                    { name: 'Status', value: 'Work' }
+                )
+                .setFooter({ text: `Requested by ${interaction.user.tag}`})
+                .setTimestamp();
+            
+            await interaction.reply({ embeds: [embed] });
+        } catch (err) {
+            console.error(err);
+            await interaction.reply({ content: 'Lỗi kết nối Database!', ephemeral: true });
         }
-
-        const newApiKey = cryptoTaoApi.randomBytes(12).toString('hex');
-        const newApi = {
-            appName: appName,
-            apiKey: newApiKey,
-            ownerId: interaction.user.id,
-            status: 'active',
-            createdAt: new Date().toISOString()
-        };
-        db.apis.push(newApi);
-        fsTaoApi.writeFileSync('./db.json', JSON.stringify(db, null, 2));
-
-        const embed = new EmbedBuilderTaoApi()
-            .setColor(0x00FF00)
-            .setTitle('Create Successful API')
-            .setDescription(`Successfully created API for the application **${appName}**`)
-            .addFields(
-                { name: 'Your API Key (Save it carefully)', value: `\`\`\`${newApiKey}\`\`\`` },
-                { name: 'Status', value: 'Work' }
-            )
-            .setFooter({ text: `Requested by ${interaction.user.tag}`})
-            .setTimestamp();
-        
-        await interaction.reply({ embeds: [embed] });
     },
 };
