@@ -24,15 +24,17 @@ for (const file of commandFiles) {
 
 // Kiểm tra quyền người dùng
 function hasPermission(interaction) {
-    const db = JSON.parse(fs.readFileSync('./db.json', 'utf-8'));
     const isOwner = interaction.guild.ownerId === interaction.user.id;
-    const isSupport = db.supportUsers.includes(interaction.user.id);
     
     // Thêm cứng ID người dùng được cấp phép
     const hardcodedUserId = "1178583507950391316"; 
     const isHardcodedUser = interaction.user.id === hardcodedUserId;
 
-    // Trả về true nếu là Owner, Support, hoặc là ID được cấp cứng
+    // Tạm thời bỏ kiểm tra supportUsers từ db.json vì đã xóa file
+    // Bạn có thể thêm ID support trực tiếp vào đây nếu muốn
+    const supportUsers = ["1007881866621235220"]; 
+    const isSupport = supportUsers.includes(interaction.user.id);
+
     return isOwner || isSupport || isHardcodedUser;
 }
 
